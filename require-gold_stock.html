@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票与黄金价格查询</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1e40af',
+                        secondary: '#f59e0b',
+                        success: '#10b981',
+                        danger: '#ef4444',
+                        neutral: '#6b7280',
+                        'primary-light': '#dbeafe',
+                        'secondary-light': '#fef3c7',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                        'card-hover': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .glass-effect {
+                background: rgba(255, 255, 255, 0.25);
+                backdrop-filter: blur(4px);
+                -webkit-backdrop-filter: blur(4px);
+                border: 1px solid rgba(255, 255, 255, 0.18);
+            }
+            .card-transition {
+                transition: all 0.3s ease;
+            }
+            .input-focus {
+                @apply focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none;
+            }
+            .btn-primary {
+                @apply bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300;
+            }
+            .btn-secondary {
+                @apply bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300;
+            }
+            .btn-outline {
+                @apply border border-primary text-primary hover:bg-primary hover:text-white font-medium py-2 px-4 rounded-lg transition-all duration-300;
+            }
+            .stock-up {
+                @apply text-danger;
+            }
+            .stock-down {
+                @apply text-success;
+            }
+            .gold-up {
+                @apply text-danger;
+            }
+            .gold-down {
+                @apply text-success;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- 导航栏 -->
+    <nav class="bg-primary text-white shadow-md">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-line-chart text-2xl"></i>
+                <h1 class="text-xl font-bold">金融市场实时数据</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button id="theme-toggle" class="p-2 rounded-full hover:bg-primary/80 transition-colors">
+                    <i class="fa fa-moon-o"></i>
+                </button>
+                <button id="help-button" class="p-2 rounded-full hover:bg-primary/80 transition-colors">
+                    <i class="fa fa-question-circle"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容区 -->
+    <main class="container mx-auto px-4 py-6">
+        <!-- 股票查询区域 -->
+        <section class="mb-8">
+            <div class="bg-white rounded-xl shadow-card p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fa fa-area-chart text-primary mr-2"></i>
+                    股票行情查询
+                </h2>
+                <div class="flex flex-col md:flex-row gap-4">
+                    <div class="flex-grow">
+                        <label for="stock-codes" class="block text-sm font-medium text-gray-700 mb-1">
+                            股票代码（逗号分隔，如：sh600000,sz000001）
+                        </label>
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                id="stock-codes" 
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus"
+                                placeholder="请输入股票代码，多个代码用逗号分隔"
+                            >
+                            <div id="stock-suggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 hidden"></div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">支持沪深A股代码，如：sh600000（浦发银行）、sz000001（平安银行）</p>
+                    </div>
+                    <div class="flex items-end">
+                        <button id="query-stocks" class="btn-primary flex items-center">
+                            <i class="fa fa-search mr-2"></i>
+                            查询股票
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 黄金查询区域 -->
+        <section class="mb-8">
+            <div class="bg-white rounded-xl shadow-card p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                    <i class="fa fa-btc text-secondary mr-2"></i>
+                    黄金价格查询
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- 当前黄金价格 -->
+                    <div class="bg-secondary-light/50 rounded-lg p-4">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">当前黄金价格</h3>
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="text-sm text-gray-600">伦敦金现</p>
+                                <p class="text-3xl font-bold" id="gold-current-price">$--</p>
+                                <p class="text-sm" id="gold-current-change">--</p>
+                            </div>
+                            <button id="refresh-gold" class="btn-secondary flex items-center">
+                                <i class="fa fa-refresh mr-2"></i>
+                                刷新
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 黄金历史价格 -->
+                    <div class="bg-secondary-light/50 rounded-lg p-4">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">黄金历史价格</h3>
+                        <div class="flex flex-col space-y-2">
+                            <div class="flex space-x-2">
+                                <select id="gold-time-range" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg input-focus">
+                                    <option value="7">近7天</option>
+                                    <option value="30">近30天</option>
+                                    <option value="90">近90天</option>
+                                    <option value="365">近一年</option>
+                                </select>
+                                <button id="query-gold-history" class="btn-secondary flex items-center">
+                                    <i class="fa fa-line-chart mr-2"></i>
+                                    查询
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 结果展示区域 -->
+        <section>
+            <div class="bg-white rounded-xl shadow-card p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">查询结果</h2>
+                
+                <!-- 股票结果 -->
+                <div id="stock-results" class="mb-8 hidden">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4">股票行情</h3>
+                    <div id="stock-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <!-- 股票卡片将在这里动态生成 -->
+                    </div>
+                </div>
+                
+                <!-- 黄金结果 -->
+                <div id="gold-results" class="mb-8 hidden">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4">黄金价格趋势</h3>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <canvas id="gold-chart" height="300"></canvas>
+                    </div>
+                </div>
+                
+                <!-- 无结果提示 -->
+                <div id="no-results" class="text-center py-12 hidden">
+                    <i class="fa fa-search text-4xl text-gray-300 mb-4"></i>
+                    <p class="text-gray-500 text-lg">请输入股票代码或选择黄金时间范围进行查询</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-gray-800 text-white py-6">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <p class="text-sm">© 2026 金融市场实时数据. 保留所有权利.</p>
+                </div>
+                <div class="flex space-x-4">
+                    <a href="#" class="text-gray-400 hover:text-white transition-colors">
+                        <i class="fa fa-github text-xl"></i>
+                    </a>
+                    <a href="#" class="text-gray-400 hover:text-white transition-colors">
+                        <i class="fa fa-twitter text-xl"></i>
+                    </a>
+                    <a href="#" class="text-gray-400 hover:text-white transition-colors">
+                        <i class="fa fa-linkedin text-xl"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="mt-4 text-center text-sm text-gray-400">
+                <p>数据来源：新浪财经、FreeGoldAPI</p>
+                <p class="mt-1">免责声明：本应用仅供学习参考，不构成投资建议</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 帮助模态框 -->
+    <div id="help-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-800">使用帮助</h3>
+                <button id="close-help" class="text-gray-500 hover:text-gray-700">
+                    <i class="fa fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <h4 class="font-semibold text-lg text-gray-700">股票查询</h4>
+                    <p class="text-gray-600">在股票代码输入框中输入沪深A股代码，多个代码用逗号分隔。例如：sh600000,sz000001</p>
+                    <p class="text-gray-600 mt-1">支持的股票代码格式：</p>
+                    <ul class="list-disc pl-5 text-gray-600">
+                        <li>沪市A股：sh+6位数字，如 sh600000（浦发银行）</li>
+                        <li>深市A股：sz+6位数字，如 sz000001（平安银行）</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-lg text-gray-700">黄金查询</h4>
+                    <p class="text-gray-600">应用会自动显示当前黄金价格，您也可以点击"刷新"按钮获取最新价格。</p>
+                    <p class="text-gray-600 mt-1">选择时间范围后点击"查询"按钮，可以查看黄金价格的历史趋势图表。</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-lg text-gray-700">数据说明</h4>
+                    <p class="text-gray-600">股票数据来源于新浪财经API，黄金数据来源于FreeGoldAPI。</p>
+                    <p class="text-gray-600 mt-1">免责声明：本应用仅供学习参考，不构成投资建议。投资有风险，入市需谨慎。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 模拟数据 - 实际应用中应从API获取
+        const mockStockData = {
+            'sh600000': {
+                name: '浦发银行',
+                code: 'sh600000',
+                price: 10.25,
+                change: 0.15,
+                changePercent: 1.48,
+                open: 10.10,
+                high: 10.35,
+                low: 10.05,
+                volume: 12500000,
+                amount: 127625000,
+                marketCap: 365250000000,
+                pe: 6.8,
+                pb: 0.85,
+                updateTime: '2026-03-17 15:00:00'
+            },
+            'sz000001': {
+                name: '平安银行',
+                code: 'sz000001',
+                price: 15.68,
+                change: -0.22,
+                changePercent: -1.38,
+                open: 15.90,
+                high: 15.95,
+                low: 15.60,
+                volume: 25600000,
+                amount: 401408000,
+                marketCap: 286560000000,
+                pe: 5.2,
+                pb: 0.72,
+                updateTime: '2026-03-17 15:00:00'
+            },
+            'sh601318': {
+                name: '中国平安',
+                code: 'sh601318',
+                price: 48.25,
+                change: 0.65,
+                changePercent: 1.37,
+                open: 47.60,
+                high: 48.40,
+                low: 47.50,
+                volume: 18900000,
+                amount: 912825000,
+                marketCap: 8765400000000,
+                pe: 8.5,
+                pb: 0.95,
+                updateTime: '2026-03-17 15:00:00'
+            }
+        };
+
+        const mockGoldData = {
+            current: {
+                price: 5021.98,
+                change: 9.54,
+                changePercent: 0.19,
+                updateTime: '2026-03-17 11:11:00'
+            },
+            historical: [
+                { date: '2026-03-11', price: 4980.50 },
+                { date: '2026-03-12', price: 4995.75 },
+                { date: '2026-03-13', price: 5010.20 },
+                { date: '2026-03-14', price: 5005.80 },
+                { date: '2026-03-15', price: 5015.30 },
+                { date: '2026-03-16', price: 5012.44 },
+                { date: '2026-03-17', price: 5021.98 }
+            ]
+        };
+
+        // 常用股票代码列表，用于自动补全
+        const commonStocks = [
+            { code: 'sh600000', name: '浦发银行' },
+            { code: 'sh601318', name: '中国平安' },
+            { code: 'sh600519', name: '贵州茅台' },
+            { code: 'sh601398', name: '工商银行' },
+            { code: 'sh601288', name: '农业银行' },
+            { code: 'sz000001', name: '平安银行' },
+            { code: 'sz000858', name: '五粮液' },
+            { code: 'sz000333', name: '美的集团' },
+            { code: 'sz002594', name: '比亚迪' },
+            { code: 'sh600036', name: '招商银行' }
+        ];
+
+        // DOM元素
+        const stockCodesInput = document.getElementById('stock-codes');
+        const stockSuggestions = document.getElementById('stock-suggestions');
+        const queryStocksBtn = document.getElementById('query-stocks');
+        const stockResults = document.getElementById('stock-results');
+        const stockCards = document.getElementById('stock-cards');
+        const goldCurrentPrice = document.getElementById('gold-current-price');
+        const goldCurrentChange = document.getElementById('gold-current-change');
+        const refreshGoldBtn = document.getElementById('refresh-gold');
+        const goldTimeRange = document.getElementById('gold-time-range');
+        const queryGoldHistoryBtn = document.getElementById('query-gold-history');
+        const goldResults = document.getElementById('gold-results');
+        const noResults = document.getElementById('no-results');
+        const helpButton = document.getElementById('help-button');
+        const helpModal = document.getElementById('help-modal');
+        const closeHelpBtn = document.getElementById('close-help');
+        const themeToggleBtn = document.getElementById('theme-toggle');
+
+        // 黄金图表实例
+        let goldChart = null;
+
+        // 初始化页面
+        document.addEventListener('DOMContentLoaded', function() {
+            // 显示无结果提示
+            noResults.classList.remove('hidden');
+            
+            // 加载当前黄金价格
+            loadCurrentGoldPrice();
+            
+            // 绑定事件
+            bindEvents();
+        });
+
+        // 绑定事件
+        function bindEvents() {
+            // 股票代码输入事件，用于自动补全
+            stockCodesInput.addEventListener('input', handleStockCodeInput);
+            stockCodesInput.addEventListener('blur', () => {
+                // 延迟隐藏，以便可以点击建议项
+                setTimeout(() => {
+                    stockSuggestions.classList.add('hidden');
+                }, 200);
+            });
+            stockCodesInput.addEventListener('focus', handleStockCodeInput);
+            
+            // 查询股票按钮点击事件
+            queryStocksBtn.addEventListener('click', queryStocks);
+            
+            // 回车键查询股票
+            stockCodesInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    queryStocks();
+                }
+            });
+            
+            // 刷新黄金价格按钮点击事件
+            refreshGoldBtn.addEventListener('click', loadCurrentGoldPrice);
+            
+            // 查询黄金历史价格按钮点击事件
+            queryGoldHistoryBtn.addEventListener('click', queryGoldHistory);
+            
+            // 帮助按钮点击事件
+            helpButton.addEventListener('click', () => {
+                helpModal.classList.remove('hidden');
+            });
+            
+            // 关闭帮助模态框按钮点击事件
+            closeHelpBtn.addEventListener('click', () => {
+                helpModal.classList.add('hidden');
+            });
+            
+            // 点击模态框外部关闭模态框
+            helpModal.addEventListener('click', function(e) {
+                if (e.target === helpModal) {
+                    helpModal.classList.add('hidden');
+                }
+            });
+            
+            // 主题切换按钮点击事件
+            themeToggleBtn.addEventListener('click', toggleTheme);
+        }
+
+        // 处理股票代码输入，显示自动补全建议
+        function handleStockCodeInput() {
+            const input = stockCodesInput.value.trim();
+            
+            // 如果输入为空，显示常用股票
+            if (input === '') {
+                showStockSuggestions(commonStocks);
+                return;
+            }
+            
+            // 检查输入是否以逗号结尾
+            const isEndingWithComma = input.endsWith(',');
+            
+            // 分割输入的代码
+            const codes = input.split(',').map(code => code.trim()).filter(code => code !== '');
+            
+            // 获取最后一个代码进行匹配
+            const lastCode = codes[codes.length - 1].toLowerCase();
+            
+            // 如果最后一个代码为空（以逗号结尾），显示常用股票
+            if (lastCode === '' && isEndingWithComma) {
+                showStockSuggestions(commonStocks);
+                return;
+            }
+            
+            // 过滤匹配的股票
+            const matchedStocks = commonStocks.filter(stock => 
+                stock.code.toLowerCase().includes(lastCode) || 
+                stock.name.toLowerCase().includes(lastCode)
+            );
+            
+            // 显示匹配的股票
+            showStockSuggestions(matchedStocks);
+        }
+
+        // 显示股票代码建议
+        function showStockSuggestions(stocks) {
+            if (stocks.length === 0) {
+                stockSuggestions.classList.add('hidden');
+                return;
+            }
+            
+            // 清空建议列表
+            stockSuggestions.innerHTML = '';
+            
+            // 添加建议项
+            stocks.forEach(stock => {
+                const suggestionItem = document.createElement('div');
+                suggestionItem.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center';
+                suggestionItem.innerHTML = `
+                    <span>${stock.name}</span>
+                    <span class="text-sm text-gray-500">${stock.code}</span>
+                `;
+                
+                // 点击建议项时，将代码添加到输入框
+                suggestionItem.addEventListener('click', () => {
+                    const input = stockCodesInput.value.trim();
+                    const codes = input.split(',').map(code => code.trim()).filter(code => code !== '');
+                    
+                    // 如果输入以逗号结尾或为空，直接添加代码
+                    if (input === '' || input.endsWith(',')) {
+                        stockCodesInput.value = input + stock.code + ', ';
+                    } 
+                    // 否则替换最后一个代码
+                    else if (codes.length > 0) {
+                        codes[codes.length - 1] = stock.code;
+                        stockCodesInput.value = codes.join(', ') + ', ';
+                    }
+                    
+                    // 隐藏建议列表
+                    stockSuggestions.classList.add('hidden');
+                    
+                    // 聚焦输入框
+                    stockCodesInput.focus();
+                });
+                
+                stockSuggestions.appendChild(suggestionItem);
+            });
+            
+            // 显示建议列表
+            stockSuggestions.classList.remove('hidden');
+        }
+
+        // 查询股票
+        function queryStocks() {
+            const input = stockCodesInput.value.trim();
+            
+            // 如果输入为空，显示提示
+            if (input === '') {
+                alert('请输入股票代码');
+                return;
+            }
+            
+            // 分割输入的代码
+            const codes = input.split(',').map(code => code.trim()).filter(code => code !== '');
+            
+            // 如果没有有效的代码，显示提示
+            if (codes.length === 0) {
+                alert('请输入有效的股票代码');
+                return;
+            }
+            
+            // 显示加载状态
+            stockResults.classList.remove('hidden');
+            stockCards.innerHTML = `
+                <div class="col-span-full flex justify-center items-center py-12">
+                    <div class="flex flex-col items-center">
+                        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                        <p class="text-gray-600">正在获取股票数据...</p>
+                    </div>
+                </div>
+            `;
+            noResults.classList.add('hidden');
+            
+            // 模拟API请求延迟
+            setTimeout(() => {
+                // 获取股票数据
+                const stockDataList = codes.map(code => {
+                    // 优先使用模拟数据
+                    if (mockStockData[code]) {
+                        return mockStockData[code];
+                    }
+                    
+                    // 否则生成随机数据
+                    return generateRandomStockData(code);
+                });
+                
+                // 显示股票数据
+                displayStockData(stockDataList);
+            }, 1000);
+        }
+
+        // 生成随机股票数据
+        function generateRandomStockData(code) {
+            const basePrice = Math.random() * 100 + 10;
+            const change = (Math.random() * 4 - 2).toFixed(2);
+            const changePercent = (change / basePrice * 100).toFixed(2);
+            
+            return {
+                name: code,
+                code: code,
+                price: (basePrice + parseFloat(change)).toFixed(2),
+                change: change,
+                changePercent: changePercent,
+                open: (basePrice - Math.random() * 2).toFixed(2),
+                high: (basePrice + Math.random() * 3).toFixed(2),
+                low: (basePrice - Math.random() * 3).toFixed(2),
+                volume: Math.floor(Math.random() * 100000000),
+                amount: Math.floor(Math.random() * 10000000000),
+                marketCap: Math.floor(Math.random() * 1000000000000),
+                pe: (Math.random() * 20 + 5).toFixed(2),
+                pb: (Math.random() * 3 + 0.5).toFixed(2),
+                updateTime: new Date().toLocaleString('zh-CN')
+            };
+        }
+
+        // 显示股票数据
+        function displayStockData(stockDataList) {
+            // 清空股票卡片容器
+            stockCards.innerHTML = '';
+            
+            // 如果没有数据，显示提示
+            if (stockDataList.length === 0) {
+                stockCards.innerHTML = `
+                    <div class="col-span-full text-center py-12">
+                        <i class="fa fa-exclamation-circle text-4xl text-gray-300 mb-4"></i>
+                        <p class="text-gray-500 text-lg">未找到相关股票数据</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // 创建股票卡片
+            stockDataList.forEach(stock => {
+                const isUp = parseFloat(stock.change) >= 0;
+                const cardClass = isUp ? 'border-l-4 border-danger' : 'border-l-4 border-success';
+                
+                const card = document.createElement('div');
+                card.className = `bg-white rounded-lg shadow-card card-transition hover:shadow-card-hover ${cardClass} overflow-hidden`;
+                
+                // 生成K线图数据
+                const kLineData = generateKLineData(stock.price, 30);
+                
+                card.innerHTML = `
+                    <div class="p-4">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="text-lg font-bold">${stock.name}</h4>
+                                <p class="text-sm text-gray-500">${stock.code}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-2xl font-bold ${isUp ? 'stock-up' : 'stock-down'}">${stock.price}</p>
+                                <p class="${isUp ? 'stock-up' : 'stock-down'}">
+                                    ${isUp ? '+' : ''}${stock.change} (${isUp ? '+' : ''}${stock.changePercent}%)
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4 h-40">
+                            <canvas class="stock-chart" data-stock='${JSON.stringify(kLineData)}'></canvas>
+                        </div>
+                        
+                        <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                                <p class="text-gray-500">开盘</p>
+                                <p>${stock.open}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500">最高</p>
+                                <p>${stock.high}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500">最低</p>
+                                <p>${stock.low}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500">成交量</p>
+                                <p>${formatNumber(stock.volume)}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4 pt-4 border-t border-gray-100 flex justify-between text-sm">
+                            <div>
+                                <p class="text-gray-500">市值</p>
+                                <p>${formatMarketCap(stock.marketCap)}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500">市盈率</p>
+                                <p>${stock.pe}</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-500">市净率</p>
+                                <p>${stock.pb}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-2 text-xs text-gray-400 text-right">
+                            更新时间: ${stock.updateTime}
+                        </div>
+                    </div>
+                `;
+                
+                stockCards.appendChild(card);
+            });
+            
+            // 绘制K线图
+            setTimeout(() => {
+                document.querySelectorAll('.stock-chart').forEach(canvas => {
+                    const stockData = JSON.parse(canvas.dataset.stock);
+                    drawKLineChart(canvas, stockData);
+                });
+            }, 100);
+        }
+
+        // 生成K线图数据
+        function generateKLineData(lastPrice, days) {
+            const data = [];
+            let price = parseFloat(lastPrice);
+            
+            // 生成过去N天的数据
+            for (let i = days; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                
+                const open = price;
+                const close = price + (Math.random() * 4 - 2);
+                const high = Math.max(open, close) + Math.random() * 2;
+                const low = Math.min(open, close) - Math.random() * 2;
+                
+                data.push({
+                    date: date.toISOString().split('T')[0],
+                    open: open.toFixed(2),
+                    high: high.toFixed(2),
+                    low: low.toFixed(2),
+                    close: close.toFixed(2)
+                });
+                
+                price = close;
+            }
+            
+            return data;
+        }
+
+        // 绘制K线图
+        function drawKLineChart(canvas, data) {
+            const ctx = canvas.getContext('2d');
+            
+            // 提取日期和价格数据
+            const labels = data.map(item => item.date);
+            const prices = data.map(item => parseFloat(item.close));
+            
+            // 创建图表
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '收盘价',
+                        data: prices,
+                        borderColor: '#1e40af',
+                        backgroundColor: 'rgba(30, 64, 175, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    const index = context.dataIndex;
+                                    const item = data[index];
+                                    return [
+                                        `开盘: ${item.open}`,
+                                        `最高: ${item.high}`,
+                                        `最低: ${item.low}`,
+                                        `收盘: ${item.close}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: false
+                        },
+                        y: {
+                            display: false,
+                            suggestedMin: Math.min(...prices) * 0.98,
+                            suggestedMax: Math.max(...prices) * 1.02
+                        }
+                    }
+                }
+            });
+        }
+
+        // 加载当前黄金价格
+        function loadCurrentGoldPrice() {
+            // 显示加载状态
+            goldCurrentPrice.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+            goldCurrentChange.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+            
+            // 模拟API请求延迟
+            setTimeout(() => {
+                // 使用模拟数据
+                const goldData = mockGoldData.current;
+                
+                // 显示黄金价格
+                goldCurrentPrice.textContent = `$${goldData.price.toFixed(2)}`;
+                
+                // 显示涨跌
+                const isUp = goldData.change >= 0;
+                goldCurrentChange.className = isUp ? 'text-sm gold-up' : 'text-sm gold-down';
+                goldCurrentChange.innerHTML = `
+                    ${isUp ? '+' : ''}${goldData.change.toFixed(2)} (${isUp ? '+' : ''}${goldData.changePercent.toFixed(2)}%)
+                `;
+                
+                // 更新时间
+                const updateTime = document.createElement('p');
+                updateTime.className = 'text-xs text-gray-500 mt-1';
+                updateTime.textContent = `更新时间: ${goldData.updateTime}`;
+                
+                // 如果已经有更新时间元素，替换它
+                const existingTime = goldCurrentChange.parentNode.querySelector('.text-xs.text-gray-500');
+                if (existingTime) {
+                    existingTime.replaceWith(updateTime);
+                } else {
+                    goldCurrentChange.parentNode.appendChild(updateTime);
+                }
+            }, 800);
+        }
+
+        // 查询黄金历史价格
+        function queryGoldHistory() {
+            const days = parseInt(goldTimeRange.value);
+            
+            // 显示加载状态
+            goldResults.classList.remove('hidden');
+            noResults.classList.add('hidden');
+            
+            const goldChartCanvas = document.getElementById('gold-chart');
+            goldChartCanvas.innerHTML = `
+                <div class="flex justify-center items-center h-full">
+                    <div class="flex flex-col items-center">
+                        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary mb-4"></div>
+                        <p class="text-gray-600">正在获取黄金历史数据...</p>
+                    </div>
+                </div>
+            `;
+            
+            // 模拟API请求延迟
+            setTimeout(() => {
+                // 生成历史数据
+                const historicalData = generateGoldHistoricalData(days);
+                
+                // 绘制黄金价格趋势图
+                drawGoldChart(historicalData);
+            }, 1000);
+        }
+
+        // 生成黄金历史数据
+        function generateGoldHistoricalData(days) {
+            // 如果是7天，使用模拟数据
+            if (days === 7) {
+                return mockGoldData.historical;
+            }
+            
+            // 否则生成随机数据
+            const data = [];
+            let price = 5000;
+            
+            for (let i = days; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                
+                price = price + (Math.random() * 20 - 10);
+                
+                data.push({
+                    date: date.toISOString().split('T')[0],
+                    price: parseFloat(price.toFixed(2))
+                });
+            }
+            
+            return data;
+        }
+
+        // 绘制黄金价格趋势图
+        function drawGoldChart(data) {
+            const ctx = document.getElementById('gold-chart').getContext('2d');
+            
+            // 提取日期和价格数据
+            const labels = data.map(item => item.date);
+            const prices = data.map(item => item.price);
+            
+            // 计算移动平均线
+            const ma7 = calculateMovingAverage(prices, 7);
+            
+            // 如果已有图表实例，销毁它
+            if (goldChart) {
+                goldChart.destroy();
+            }
+            
+            // 创建图表
+            goldChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '黄金价格',
+                            data: prices,
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#f59e0b',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: '7日移动平均',
+                            data: ma7,
+                            borderColor: '#1e40af',
+                            borderWidth: 1.5,
+                            pointRadius: 0,
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                boxWidth: 6
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += new Intl.NumberFormat('en-US', { 
+                                            style: 'currency', 
+                                            currency: 'USD',
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2
+                                        }).format(context.parsed.y);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 10
+                            }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toFixed(0);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 计算移动平均线
+        function calculateMovingAverage(data, window) {
+            const result = [];
+            
+            // 前面的点用null填充
+            for (let i = 0; i < window - 1; i++) {
+                result.push(null);
+            }
+            
+            // 计算移动平均
+            for (let i = window - 1; i < data.length; i++) {
+                let sum = 0;
+                for (let j = 0; j < window; j++) {
+                    sum += data[i - j];
+                }
+                result.push(parseFloat((sum / window).toFixed(2)));
+            }
+            
+            return result;
+        }
+
+        // 格式化数字
+        function formatNumber(num) {
+            return new Intl.NumberFormat('zh-CN').format(num);
+        }
+
+        // 格式化市值
+        function formatMarketCap(cap) {
+            if (cap >= 1000000000000) {
+                return (cap / 1000000000000).toFixed(2) + '万亿';
+            } else if (cap >= 100000000) {
+                return (cap / 100000000).toFixed(2) + '亿';
+            } else if (cap >= 10000) {
+                return (cap / 10000).toFixed(2) + '万';
+            } else {
+                return cap.toString();
+            }
+        }
+
+        // 切换主题
+        function toggleTheme() {
+            const icon = themeToggleBtn.querySelector('i');
+            
+            if (icon.classList.contains('fa-moon-o')) {
+                // 切换到深色模式
+                icon.classList.remove('fa-moon-o');
+                icon.classList.add('fa-sun-o');
+                document.body.classList.add('dark-mode');
+                // 这里可以添加更多深色模式的样式
+            } else {
+                // 切换到浅色模式
+                icon.classList.remove('fa-sun-o');
+                icon.classList.add('fa-moon-o');
+                document.body.classList.remove('dark-mode');
+                // 这里可以移除深色模式的样式
+            }
+        }
+    </script>
+</body>
+</html>
