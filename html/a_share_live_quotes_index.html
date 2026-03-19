@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>沪深个股实时行情看板</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #131a2a;
+      --panel-2: #1a2238;
+      --line: #2a3557;
+      --text: #eef2ff;
+      --muted: #99a4c2;
+      --up: #ff5b5b;
+      --down: #4cd08a;
+      --warn: #f5c451;
+      --accent: #6ea8ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(180deg, #0b1020 0%, #0e1324 100%);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+    }
+    .sub {
+      color: var(--muted);
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 16px;
+    }
+    .panel {
+      background: rgba(19, 26, 42, 0.96);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+    }
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+    label {
+      display: block;
+      margin: 12px 0 6px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    input, textarea, select, button {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 12px 14px;
+      font-size: 14px;
+    }
+    textarea {
+      min-height: 96px;
+      resize: vertical;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .btns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    button {
+      cursor: pointer;
+      transition: transform .12s ease, border-color .12s ease, opacity .12s ease;
+    }
+    button:hover { transform: translateY(-1px); border-color: var(--accent); }
+    button.secondary { background: transparent; }
+    .status {
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(110, 168, 255, 0.08);
+      border: 1px solid rgba(110, 168, 255, 0.22);
+      color: #cfe0ff;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .tips {
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--muted);
+      margin-top: 12px;
+    }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .toolbar .meta {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+    }
+    th, td {
+      padding: 12px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      font-size: 14px;
+      vertical-align: top;
+    }
+    th {
+      background: rgba(255,255,255,0.03);
+      color: var(--muted);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+    }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .price-up { color: var(--up); font-weight: 700; }
+    .price-down { color: var(--down); font-weight: 700; }
+    .price-flat { color: var(--text); font-weight: 700; }
+    .pill {
+      display: inline-block;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      margin-right: 6px;
+      margin-top: 4px;
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .small { font-size: 12px; color: var(--muted); }
+    .depth {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      min-width: 220px;
+    }
+    .depth ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .depth li {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 2px 0;
+      font-size: 12px;
+    }
+    .buy { color: var(--down); }
+    .sell { color: var(--up); }
+    .empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 36px 12px;
+      border: 1px dashed var(--line);
+      border-radius: 14px;
+    }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>沪深个股实时行情看板</h1>
+    <div class="sub">
+      纯前端静态页面，适合直接部署到 GitHub Pages。支持输入多个股票代码，通过 WebSocket 订阅实时成交、盘口和 1 分钟 K 线，并实时更新表格。
+    </div>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>连接设置</h2>
+
+        <label for="apiKey">Infoway API Key</label>
+        <input id="apiKey" type="password" placeholder="请输入你的 API Key（不会自动保存）" />
+
+        <label for="symbols">股票代码</label>
+        <textarea id="symbols" placeholder="每行一个，或用英文逗号分隔，例如：&#10;600519.SH&#10;000001.SZ&#10;300750.SZ">600519.SH
+000001.SZ
+300750.SZ</textarea>
+
+        <div class="row">
+          <div>
+            <label for="klineType">K线周期</label>
+            <select id="klineType">
+              <option value="1">1分钟</option>
+              <option value="5">5分钟</option>
+              <option value="15">15分钟</option>
+              <option value="30">30分钟</option>
+              <option value="60">60分钟</option>
+              <option value="101">日线</option>
+            </select>
+          </div>
+          <div>
+            <label for="autoReconnect">自动重连</label>
+            <select id="autoReconnect">
+              <option value="true">开启</option>
+              <option value="false">关闭</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="btns">
+          <button id="connectBtn">连接并订阅</button>
+          <button id="disconnectBtn" class="secondary">断开连接</button>
+        </div>
+
+        <div id="status" class="status">未连接</div>
+
+        <div class="tips">
+          <div>1. 代码格式使用交易所后缀：上交所 <span class="mono">.SH</span>，深交所 <span class="mono">.SZ</span>。</div>
+          <div>2. 这是纯前端示例，API Key 不要硬编码到仓库；建议运行时输入，或改造成你自己的代理服务。</div>
+          <div>3. GitHub Pages 只能托管静态文件；若后续要隐藏密钥、做权限控制、缓存或聚合行情，需要额外的服务端/边缘函数。</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="toolbar">
+          <h2 style="margin:0;">实时行情</h2>
+          <div class="meta" id="metaInfo">已订阅 0 只 · 最后更新 --</div>
+        </div>
+
+        <div id="emptyState" class="empty">尚未连接。输入 API Key 和股票代码后，点击“连接并订阅”。</div>
+
+        <div style="overflow:auto;">
+          <table id="quoteTable" style="display:none;">
+            <thead>
+              <tr>
+                <th>代码</th>
+                <th>最新价</th>
+                <th>涨跌幅</th>
+                <th>成交</th>
+                <th>1分钟K线</th>
+                <th>五档盘口</th>
+                <th>时间</th>
+              </tr>
+            </thead>
+            <tbody id="quoteTbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    class AShareLiveApp {
+      constructor() {
+        this.ws = null;
+        this.heartbeatTimer = null;
+        this.reconnectTimer = null;
+        this.reconnectAttempts = 0;
+        this.manualClose = false;
+        this.symbols = [];
+        this.state = new Map();
+
+        this.$apiKey = document.getElementById('apiKey');
+        this.$symbols = document.getElementById('symbols');
+        this.$klineType = document.getElementById('klineType');
+        this.$autoReconnect = document.getElementById('autoReconnect');
+        this.$status = document.getElementById('status');
+        this.$metaInfo = document.getElementById('metaInfo');
+        this.$tbody = document.getElementById('quoteTbody');
+        this.$table = document.getElementById('quoteTable');
+        this.$empty = document.getElementById('emptyState');
+
+        document.getElementById('connectBtn').addEventListener('click', () => this.connect());
+        document.getElementById('disconnectBtn').addEventListener('click', () => this.disconnect(true));
+      }
+
+      setStatus(text) {
+        this.$status.textContent = text;
+      }
+
+      parseSymbols(raw) {
+        return [...new Set(
+          raw
+            .split(/[\n,，\s]+/)
+            .map(s => s.trim().toUpperCase())
+            .filter(Boolean)
+        )];
+      }
+
+      generateTraceId() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      }
+
+      formatTime(ts) {
+        if (!ts) return '--';
+        const n = Number(ts);
+        const ms = String(ts).length >= 13 ? n : n * 1000;
+        const d = new Date(ms);
+        if (Number.isNaN(d.getTime())) return '--';
+        return d.toLocaleTimeString('zh-CN', { hour12: false });
+      }
+
+      safeNum(v, digits = 2) {
+        if (v === null || v === undefined || v === '') return '--';
+        const n = Number(v);
+        return Number.isFinite(n) ? n.toFixed(digits) : String(v);
+      }
+
+      pctClass(v) {
+        const n = parseFloat(String(v).replace('%', ''));
+        if (!Number.isFinite(n) || n === 0) return 'price-flat';
+        return n > 0 ? 'price-up' : 'price-down';
+      }
+
+      ensureRow(symbol) {
+        if (!this.state.has(symbol)) {
+          this.state.set(symbol, {
+            symbol,
+            lastPrice: null,
+            changePct: null,
+            tradeVol: null,
+            tradeAmount: null,
+            tradeTime: null,
+            kline: null,
+            depth: null,
+            lastUpdate: null
+          });
+        }
+        return this.state.get(symbol);
+      }
+
+      buildWsUrl(apiKey) {
+        return `wss://data.infoway.io/ws?business=stock&apikey=${encodeURIComponent(apiKey)}`;
+      }
+
+      connect() {
+        const apiKey = this.$apiKey.value.trim();
+        const symbols = this.parseSymbols(this.$symbols.value);
+        if (!apiKey) {
+          this.setStatus('请先输入 API Key。');
+          return;
+        }
+        if (!symbols.length) {
+          this.setStatus('请至少输入一个股票代码。');
+          return;
+        }
+
+        this.symbols = symbols;
+        this.manualClose = false;
+        this.clearReconnect();
+        this.clearHeartbeat();
+
+        this.setStatus(`正在连接 WebSocket...\n订阅标的：${symbols.join(', ')}`);
+        this.render();
+
+        const wsUrl = this.buildWsUrl(apiKey);
+        try {
+          this.ws = new WebSocket(wsUrl);
+        } catch (err) {
+          this.setStatus(`创建 WebSocket 失败：${err.message || err}`);
+          return;
+        }
+
+        this.ws.onopen = () => {
+          this.reconnectAttempts = 0;
+          this.setStatus(`已连接。\n开始订阅 ${this.symbols.length} 只股票。`);
+          this.subscribeAll();
+          this.startHeartbeat();
+        };
+
+        this.ws.onmessage = (event) => this.handleMessage(event.data);
+        this.ws.onerror = () => this.setStatus('WebSocket 出现错误，请检查 API Key、网络或服务商权限。');
+        this.ws.onclose = (event) => {
+          this.clearHeartbeat();
+          this.setStatus(`连接关闭：code=${event.code} reason=${event.reason || '无'}`);
+          if (!this.manualClose && this.$autoReconnect.value === 'true') {
+            this.scheduleReconnect();
+          }
+        };
+      }
+
+      disconnect(manual = false) {
+        this.manualClose = manual;
+        this.clearHeartbeat();
+        this.clearReconnect();
+        if (this.ws) {
+          try {
+            this.ws.close(1000, manual ? 'Manual close' : 'Close');
+          } catch (_) {}
+        }
+        this.ws = null;
+        if (manual) this.setStatus('已手动断开连接。');
+      }
+
+      scheduleReconnect() {
+        this.clearReconnect();
+        this.reconnectAttempts += 1;
+        const delay = Math.min(3000 * this.reconnectAttempts, 15000);
+        this.setStatus(`连接断开，${delay / 1000} 秒后自动重连（第 ${this.reconnectAttempts} 次）。`);
+        this.reconnectTimer = setTimeout(() => this.connect(), delay);
+      }
+
+      clearReconnect() {
+        if (this.reconnectTimer) {
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = null;
+        }
+      }
+
+      startHeartbeat() {
+        this.clearHeartbeat();
+        this.heartbeatTimer = setInterval(() => {
+          this.sendJson({ code: 10010, trace: this.generateTraceId() });
+        }, 30000);
+      }
+
+      clearHeartbeat() {
+        if (this.heartbeatTimer) {
+          clearInterval(this.heartbeatTimer);
+          this.heartbeatTimer = null;
+        }
+      }
+
+      subscribeAll() {
+        const codes = this.symbols.join(',');
+        this.sendJson({
+          code: 10000,
+          trace: this.generateTraceId(),
+          data: { codes }
+        });
+
+        this.sendJson({
+          code: 10003,
+          trace: this.generateTraceId(),
+          data: { codes }
+        });
+
+        this.sendJson({
+          code: 10006,
+          trace: this.generateTraceId(),
+          data: {
+            arr: this.symbols.map(symbol => ({ type: Number(this.$klineType.value), codes: symbol }))
+          }
+        });
+      }
+
+      sendJson(payload) {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+        this.ws.send(JSON.stringify(payload));
+      }
+
+      handleMessage(raw) {
+        let msg;
+        try {
+          msg = JSON.parse(raw);
+        } catch (err) {
+          console.warn('无法解析消息', raw);
+          return;
+        }
+
+        const code = msg.code;
+        const data = msg.data;
+
+        if (code === 10010) return;
+        if (!data) return;
+
+        if (code === 10000) {
+          this.handleTrade(data);
+        } else if (code === 10003) {
+          this.handleDepth(data);
+        } else if (code === 10006) {
+          this.handleKline(data);
+        } else {
+          console.log('未处理的消息', msg);
+        }
+
+        this.render();
+      }
+
+      handleTrade(data) {
+        const list = Array.isArray(data) ? data : [data];
+        for (const item of list) {
+          const symbol = item.s || item.symbol;
+          if (!symbol) continue;
+          const row = this.ensureRow(symbol);
+          row.lastPrice = item.p ?? row.lastPrice;
+          row.tradeVol = item.v ?? row.tradeVol;
+          row.tradeAmount = item.vw ?? row.tradeAmount;
+          row.tradeTime = item.t ?? row.tradeTime;
+          row.lastUpdate = Date.now();
+        }
+      }
+
+      handleDepth(data) {
+        const list = Array.isArray(data) ? data : [data];
+        for (const item of list) {
+          const symbol = item.s || item.symbol;
+          if (!symbol) continue;
+          const row = this.ensureRow(symbol);
+          row.depth = {
+            ask: item.a || [],
+            bid: item.b || [],
+            time: item.t || null
+          };
+          row.lastUpdate = Date.now();
+        }
+      }
+
+      handleKline(data) {
+        const list = Array.isArray(data) ? data : [data];
+        for (const item of list) {
+          const symbol = item.s || item.symbol;
+          if (!symbol) continue;
+          const row = this.ensureRow(symbol);
+          const last = Array.isArray(item.respList) ? item.respList[item.respList.length - 1] : item;
+          if (!last) continue;
+          row.kline = {
+            open: last.o,
+            high: last.h,
+            low: last.l,
+            close: last.c,
+            pct: last.pc,
+            change: last.pca,
+            vol: last.v,
+            amount: last.vw,
+            time: last.t
+          };
+          row.changePct = last.pc ?? row.changePct;
+          row.lastPrice = last.c ?? row.lastPrice;
+          row.lastUpdate = Date.now();
+        }
+      }
+
+      renderDepth(depth) {
+        if (!depth) return '<span class="small">--</span>';
+        const askPrices = depth.ask[0] || [];
+        const askVols = depth.ask[1] || [];
+        const bidPrices = depth.bid[0] || [];
+        const bidVols = depth.bid[1] || [];
+
+        const sell = Array.from({ length: Math.min(5, askPrices.length) }).map((_, i) =>
+          `<li><span>卖${i + 1} ${askPrices[i] ?? '--'}</span><span>${askVols[i] ?? '--'}</span></li>`
+        ).join('');
+        const buy = Array.from({ length: Math.min(5, bidPrices.length) }).map((_, i) =>
+          `<li><span>买${i + 1} ${bidPrices[i] ?? '--'}</span><span>${bidVols[i] ?? '--'}</span></li>`
+        ).join('');
+
+        return `
+          <div class="depth">
+            <ul class="sell">${sell || '<li><span>--</span><span>--</span></li>'}</ul>
+            <ul class="buy">${buy || '<li><span>--</span><span>--</span></li>'}</ul>
+          </div>
+        `;
+      }
+
+      render() {
+        const rows = this.symbols.map(symbol => this.ensureRow(symbol));
+
+        this.$metaInfo.textContent = `已订阅 ${this.symbols.length} 只 · 最后更新 ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`;
+
+        if (!rows.length) {
+          this.$table.style.display = 'none';
+          this.$empty.style.display = 'block';
+          return;
+        }
+
+        this.$empty.style.display = 'none';
+        this.$table.style.display = 'table';
+
+        this.$tbody.innerHTML = rows.map(row => {
+          const cls = this.pctClass(row.changePct);
+          const tradeText = `
+            <div><span class="pill">量 ${row.tradeVol ?? '--'}</span></div>
+            <div><span class="pill">额 ${row.tradeAmount ?? '--'}</span></div>
+          `;
+          const klineText = row.kline ? `
+            <div class="small">O ${this.safeNum(row.kline.open, 3)} / H ${this.safeNum(row.kline.high, 3)}</div>
+            <div class="small">L ${this.safeNum(row.kline.low, 3)} / C ${this.safeNum(row.kline.close, 3)}</div>
+          ` : '<span class="small">--</span>';
+
+          return `
+            <tr>
+              <td>
+                <div class="mono">${row.symbol}</div>
+              </td>
+              <td class="${cls}">${row.lastPrice ?? '--'}</td>
+              <td class="${cls}">${row.changePct ?? '--'}</td>
+              <td>${tradeText}</td>
+              <td>${klineText}</td>
+              <td>${this.renderDepth(row.depth)}</td>
+              <td>${this.formatTime(row.tradeTime || row.kline?.time || row.depth?.time)}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    new AShareLiveApp();
+  </script>
+</body>
+</html>
